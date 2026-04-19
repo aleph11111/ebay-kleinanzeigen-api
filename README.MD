@@ -127,10 +127,20 @@ GET /inserate?query=fahrrad&location=10178&radius=5&min_price=200&page_count=5
 
 - **`id`** *(string)*: The unique identifier of the listing to fetch details for.
 
+##### Query Parameters
+
+- **`full_gallery`** *(boolean, optional)*: When `true`, return every image in the listing gallery. When `false` (default), return only the hero image.
+
 ##### Example Request
 
 ```http
 GET /inserat/12345
+```
+
+##### Example Request with `full_gallery`
+
+```http
+GET /inserat/12345?full_gallery=true
 ```
 
 #### 3. Fetch Listings with Details (Combined)
