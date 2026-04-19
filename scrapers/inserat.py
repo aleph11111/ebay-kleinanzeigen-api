@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import HTTPException
 from libs.websites import kleinanzeigen as lib
 import re
@@ -10,6 +12,8 @@ from utils.error_handling import (
     ErrorSeverity,
     error_handling_context,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def get_inserate_details(url: str, page, full_gallery: bool = False):
@@ -253,6 +257,17 @@ async def get_inserate_details_optimized(
                     response["detailed_warnings"] = [w.to_dict() for w in warnings]
                     response["warning_summary"] = warning_manager.get_warning_summary()
 
+                mode = "full_gallery" if full_gallery else "hero_only"
+                images_extracted = len((details or {}).get("images") or [])
+                time_ms = int(request_metrics.total_time * 1000)
+                logger.info(
+                    "listing %s: mode=%s images_extracted=%d time_ms=%d",
+                    listing_id,
+                    mode,
+                    images_extracted,
+                    time_ms,
+                )
+
                 return response
 
             except Exception as e:
@@ -341,6 +356,19 @@ async def get_inserate_details_optimized(
                             warning_manager.get_user_friendly_messages()
                         )
                         response["detailed_warnings"] = [w.to_dict() for w in warnings]
+
+                    mode = "full_gallery" if full_gallery else "hero_only"
+                    reason = (
+                        structured_error.message.replace("\n", " ")[:200]
+                        if structured_error.message
+                        else "unknown"
+                    )
+                    logger.warning(
+                        "listing %s: mode=%s failed reason=%s",
+                        listing_id,
+                        mode,
+                        reason,
+                    )
 
                     return response
 
