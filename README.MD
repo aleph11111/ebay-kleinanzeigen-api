@@ -133,6 +133,27 @@ GET /inserate?query=fahrrad&location=10178&radius=5&min_price=200&page_count=5
 GET /inserat/12345
 ```
 
+##### Terminal-listing fields
+
+The `data` object carries two fields describing whether a listing is still live:
+
+- **`status`** *(string)*: `"active"`, `"reserved"`, `"sold"`, or `"deleted"`,
+  derived from the listing title/badges.
+- **`removal_reason`** *(string | null)*: why a terminally-removed listing is
+  gone. `null` (and omitted from the meaning of the field) for active/reserved
+  listings. One of:
+
+  | Value | Meaning | Signal |
+  |---|---|---|
+  | `"platform_deleted"` | Removed by Kleinanzeigen (policy/fraud) or the id no longer resolves | `data.id` is the `"[ERROR] Ad ID not found"` sentinel, **or** an on-page "von (eBay) Kleinanzeigen entfernt" / "verstößt gegen unsere Nutzungsbedingungen" banner |
+  | `"sold"` | Marked as sold by the seller | `status == "sold"` or a "wurde verkauft" banner |
+  | `"seller_deleted"` | Delisted by the seller | `status == "deleted"` or a "wurde gelöscht" banner |
+  | `"unknown"` | Terminal, but the reason could not be read | a generic "nicht mehr verfügbar" banner |
+
+  The detection is conservative about `"platform_deleted"` — it is only emitted
+  on the `"[ERROR]"` id sentinel or an explicit platform-removal banner, so a
+  legitimate seller-removed listing is never misreported as platform-removed.
+
 #### 3. Fetch Listings with Details (Combined)
 
 **Endpoint:** `GET /inserate-detailed`

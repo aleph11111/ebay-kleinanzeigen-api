@@ -97,6 +97,8 @@ async def get_inserate_details(url: str, page, full_gallery: bool = False):
         location = await lib.get_location(page)
         extra_info = await lib.get_extra_info(page)
 
+        removal_reason = await lib.get_removal_reason(page, status, ad_id)
+
         return {
             "id": ad_id,
             "categories": categories,
@@ -104,6 +106,7 @@ async def get_inserate_details(url: str, page, full_gallery: bool = False):
             if " • " in title
             else title.strip(),
             "status": status,
+            "removal_reason": removal_reason,
             "price": price,
             "delivery": shipping,
             "location": location,
