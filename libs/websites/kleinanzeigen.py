@@ -68,6 +68,95 @@ async def get_image_sources(
     return images
 
 
+def classify_removal_reason(
+    status: Optional[str],
+    ad_id: Optional[str],
+    banner_text: str = "",
+) -> Optional[str]:
+    """Classify why a terminally-removed listing is gone.
+
+    Pure (no DOM): the testable core behind ``get_removal_reason``. Returns one
+    of ``'platform_deleted' | 'sold' | 'seller_deleted' | 'unknown'`` for a
+    terminal listing, or ``None`` for an active/reserved one.
+
+    The consuming brickshop-manager pipeline only acts on ``'platform_deleted'``
+    (route to fraud-dismiss, exclude the price from aggregation); every other
+    value — including ``'unknown'`` and absent — is treated as a real listing
+    and archived with its frozen price kept. So we stay conservative about
+    emitting ``'platform_deleted'``: only the "[ERROR]" id sentinel (the id
+    resolved to nothing) or an explicit platform-removal banner triggers it.
+    """
+    text = (banner_text or "").lower()
+    sentinel = bool(ad_id) and "[ERROR]" in ad_id
+
+    # 1. Platform-removed (fraud / policy). Highest priority.
+    if sentinel:
+        return "platform_deleted"
+    if any(
+        phrase in text
+        for phrase in (
+            "von ebay kleinanzeigen entfernt",
+            "von kleinanzeigen entfernt",
+            "verstößt gegen",
+            "gegen unsere nutzungsbedingungen",
+        )
+    ):
+        return "platform_deleted"
+
+    # 2. Sold (page still resolves, marked "Verkauft").
+    if status == "sold" or "wurde verkauft" in text:
+        return "sold"
+
+    # 3. Seller-driven deletion (page still resolves, marked "Gelöscht").
+    if status == "deleted" or "wurde gelöscht" in text:
+        return "seller_deleted"
+
+    # 4. Terminal but the reason is unreadable (banner missing / unrecognized).
+    if any(
+        phrase in text
+        for phrase in (
+            "nicht mehr verfügbar",
+            "ist nicht mehr aktiv",
+            "wurde beendet",
+        )
+    ):
+        return "unknown"
+
+    # 5. Active / reserved — not a terminal listing.
+    return None
+
+
+async def get_removal_reason(
+    page: Page, status: Optional[str], ad_id: Optional[str]
+) -> Optional[str]:
+    """Resolve ``removal_reason`` for a listing detail page.
+
+    The "[ERROR]" id sentinel is authoritative and DOM-independent. Otherwise we
+    read the listing title plus any system/notice boxes (never the free-text
+    description, to avoid matching listing copy by accident) and hand the text to
+    ``classify_removal_reason``. The title carries the reliable "Verkauft" /
+    "Gelöscht" signal; the notice selectors are best-effort refinements.
+    """
+    if ad_id and "[ERROR]" in ad_id:
+        return "platform_deleted"
+
+    parts: List[str] = []
+    title = await get_element_content(page, "#viewad-title")
+    if title:
+        parts.append(title)
+    for selector in (
+        ".messagebox",
+        ".messagebox-info",
+        ".messagebox-alert",
+        "#viewad-status-info",
+    ):
+        notice = await get_element_content(page, selector)
+        if notice:
+            parts.append(notice)
+
+    return classify_removal_reason(status, ad_id, " ".join(parts))
+
+
 def parse_price(price_text: Optional[str]) -> Dict[str, Union[str, bool]]:
     if not price_text:
         return {"amount": "0", "currency": "€", "negotiable": False}
