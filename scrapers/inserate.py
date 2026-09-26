@@ -19,23 +19,21 @@ from utils.error_handling import (
 
 async def get_ads(page):
     try:
-        items = await page.query_selector_all(
-            ".ad-listitem:not(.is-topad):not(.badge-hint-pro-small-srp)"
-        )
+        # Astro relaunch (2026-09) dropped the .ad-listitem wrapper.
+        articles = await page.query_selector_all("article[data-adid]")
         results = []
-        for item in items:
-            article = await item.query_selector("article")
+        for article in articles:
             if article:
                 data_adid = await article.get_attribute("data-adid")
                 data_href = await article.get_attribute("data-href")
                 # Get title from h2 element
                 title_element = await article.query_selector(
-                    "h2.text-module-begin a.ellipsis"
+                    "h3, h2.text-module-begin a.ellipsis"
                 )
                 title_text = await title_element.inner_text() if title_element else ""
                 # Get price and description
                 price = await article.query_selector(
-                    "p.aditem-main--middle--price-shipping--price"
+                    "p.aditem-main--middle--price-shipping--price, p.text-title3"
                 )
                 # strip € and VB and strip whitespace
                 price_text = await price.inner_text() if price else ""
@@ -46,7 +44,7 @@ async def get_ads(page):
                     .strip()
                 )
                 description = await article.query_selector(
-                    "p.aditem-main--middle--description"
+                    "p.aditem-main--middle--description, h3 + p"
                 )
                 description_text = await description.inner_text() if description else ""
                 if data_adid and data_href:
