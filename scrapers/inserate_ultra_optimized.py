@@ -66,10 +66,9 @@ class UltraOptimizedScraper:
         to minimize memory usage.
         """
         try:
-            # Use more specific selector to reduce DOM traversal
-            items = await page.query_selector_all(
-                ".ad-listitem:not(.is-topad):not(.badge-hint-pro-small-srp) article[data-adid]"
-            )
+            # Astro relaunch (2026-09) dropped the .ad-listitem wrapper; cards are
+            # matched directly. Top-ads carry no data-adid and stay excluded.
+            items = await page.query_selector_all("article[data-adid]")
 
             results = []
 
@@ -113,13 +112,13 @@ class UltraOptimizedScraper:
 
             # Parallel extraction of text content
             title_task = self._get_text_content(
-                article, "h2.text-module-begin a.ellipsis"
+                article, "h3, h2.text-module-begin a.ellipsis"
             )
             price_task = self._get_text_content(
-                article, "p.aditem-main--middle--price-shipping--price"
+                article, "p.aditem-main--middle--price-shipping--price, p.text-title3"
             )
             desc_task = self._get_text_content(
-                article, "p.aditem-main--middle--description"
+                article, "p.aditem-main--middle--description, h3 + p"
             )
 
             title_text, price_text, description_text = await asyncio.gather(
@@ -196,7 +195,7 @@ class UltraOptimizedScraper:
                     # Wait for essential content only
                     try:
                         await page.wait_for_selector(
-                            ".ad-listitem", timeout=5000, state="visible"
+                            "article[data-adid]", timeout=5000, state="visible"
                         )
                     except Exception:
                         # Continue even if selector not found - might be empty page
